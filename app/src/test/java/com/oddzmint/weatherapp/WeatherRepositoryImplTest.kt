@@ -6,10 +6,11 @@ import com.oddzmint.weatherapp.data.local.WeatherDao
 import com.oddzmint.weatherapp.data.local.WeatherEntity
 import com.oddzmint.weatherapp.data.location.LocationTracker
 import com.oddzmint.weatherapp.data.remote.api.WeatherApi
-import com.oddzmint.weatherapp.data.remote.dto.WeatherIntervalDto
-import com.oddzmint.weatherapp.data.remote.dto.WeatherForecastResponseDto
+import com.oddzmint.weatherapp.data.remote.dto.CityDetailsDto
 import com.oddzmint.weatherapp.data.remote.dto.WeatherConditionsDto
 import com.oddzmint.weatherapp.data.remote.dto.WeatherDto
+import com.oddzmint.weatherapp.data.remote.dto.WeatherForecastResponseDto
+import com.oddzmint.weatherapp.data.remote.dto.WeatherIntervalDto
 import com.oddzmint.weatherapp.data.repository.WeatherRepositoryImpl
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -17,162 +18,98 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
-import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Test
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class WeatherRepositoryImplTest {
-
     private val weatherApi: WeatherApi = mockk()
     private val locationTracker: LocationTracker = mockk()
     private val weatherDao: WeatherDao = mockk()
-
-    private lateinit var repository: WeatherRepositoryImpl
+    private lateinit var weatherRepository: WeatherRepositoryImpl
 
     @Before
     fun setup() {
-        repository = WeatherRepositoryImpl(
-            weatherApi = weatherApi,
-            locationTracker = locationTracker,
-            weatherDao = weatherDao
-        )
+        weatherRepository = WeatherRepositoryImpl(weatherApi, locationTracker, weatherDao)
     }
 
     @Test
-    fun `given api success, returns fresh forecast`() = runTest {
-        coEvery { locationTracker.getCurrentLocation() } returns mockLocation()
-        coEvery { weatherApi.getFiveDayForecast(any(), any(), any(), any()) } returns mockForecastResponse()
-        coEvery { weatherDao.clearWeatherForecasts() } just Runs
-        coEvery { weatherDao.insertWeatherForecasts(any()) } just Runs
+    fun `given valid location and api response, when getFiveDayForecast is called, then emits mapped domain models`() =
+        runTest {
+            coEvery { locationTracker.getCurrentLocation() } returns mockLocation()
+            coEvery { weatherApi.getFiveDayForecast(any(), any(), any()) } returns mockForecastResponse()
+            coEvery { weatherDao.clearWeatherForecasts() } just Runs
+            coEvery { weatherDao.insertWeatherForecasts(any()) } just Runs
 
-        val result = repository.getFiveDayForecast()
+            every { weatherDao.getWeatherForecasts() } returns flowOf(listOf(mockWeatherEntity()))
 
-        assertThat(result).isNotEmpty()
-        coVerify { weatherDao.clearWeatherForecasts() }
-        coVerify { weatherDao.insertWeatherForecasts(any()) }
-    }
-
-    @Test
-    fun `given api success, caches data to room`() = runTest {
-        coEvery { locationTracker.getCurrentLocation() } returns mockLocation()
-        coEvery { weatherApi.getFiveDayForecast(any(), any(), any(), any()) } returns mockForecastResponse()
-        coEvery { weatherDao.clearWeatherForecasts() } just Runs
-        coEvery { weatherDao.insertWeatherForecasts(any()) } just Runs
-
-        repository.getFiveDayForecast()
-
-        coVerify(exactly = 1) { weatherDao.clearWeatherForecasts() }
-        coVerify(exactly = 1) { weatherDao.insertWeatherForecasts(any()) }
-    }
-
-    @Test
-    fun `given api failure and cache exists, returns cached data`() = runTest {
-        // Arrange
-        coEvery { locationTracker.getCurrentLocation() } returns mockLocation()
-        coEvery { weatherApi.getFiveDayForecast(any(), any(), any(), any()) } throws Exception("No internet")
-        coEvery { weatherDao.getWeatherForecasts() } returns mockCachedEntities()
-
-        val result = repository.getFiveDayForecast()
-
-        assertThat(result).isNotEmpty()
-        assertThat(result.first().day).isEqualTo("Mon")
-    }
-
-    @Test
-    fun `given api failure and no cache, throws exception`() = runTest {
-        coEvery { locationTracker.getCurrentLocation() } returns mockLocation()
-        coEvery { weatherApi.getFiveDayForecast(any(), any(), any(), any()) } throws Exception("No internet")
-        coEvery { weatherDao.getWeatherForecasts() } returns emptyList()
-
-        assertThrows(Exception::class.java) {
-            runBlocking { repository.getFiveDayForecast() }
+            val result = weatherRepository.getFiveDayForecast().first()
+            assertThat(result).isNotEmpty()
+            assertThat(result.first().day).isEqualTo("Mon")
+            assertThat(result.last().temperature).isEqualTo(2)
         }
+
+    private fun mockLocation() = Location("provider").apply {
+        latitude = -33.9249
+        longitude = 18.4241
     }
 
-    @Test
-    fun `given null location, uses default coordinates`() = runTest {
-        coEvery { locationTracker.getCurrentLocation() } returns null
-        coEvery { weatherApi.getFiveDayForecast(
-            latitude = 0.0,
-            longitude = 0.0,
-            apiKey = any(),
-            units = any()
-        ) } returns mockForecastResponse()
-        coEvery { weatherDao.clearWeatherForecasts() } just Runs
-        coEvery { weatherDao.insertWeatherForecasts(any()) } just Runs
-
-        val result = repository.getFiveDayForecast()
-
-        assertThat(result).isNotEmpty()
-        coVerify {
-            weatherApi.getFiveDayForecast(
-                latitude = 0.0,
-                longitude = 0.0,
-                apiKey = any(),
-                units = any()
-            )
-        }
-    }
-
-
-    private fun mockLocation(): Location {
-        val location = mockk<Location>()
-        every { location.latitude } returns -33.9249
-        every { location.longitude } returns 18.4241
-        return location
-    }
+    private fun mockWeatherEntity() = WeatherEntity(
+        date = "2026/06/24",
+        cityName = "Cape Town",
+        day = "Mon",
+        temperature = 2,
+        weatherType = "Clear",
+        icon = "Hot Icon",
+        weatherDescription = "Hot"
+    )
 
     private fun mockForecastResponse() = WeatherForecastResponseDto(
-        list = listOf(
+        intervals = listOf(
             WeatherIntervalDto(
-                dt_txt = "2026-05-04 12:00:00",
-                main = WeatherConditionsDto(temp = 20.0),
-                weather = listOf(WeatherDto(weatherCondition = "Clear", icon = "01d"))
-            ),
-            WeatherIntervalDto(
-                dt_txt = "2026-06-05 06:00:00",
-                main = WeatherConditionsDto(temp = 18.0),
-                weather = listOf(WeatherDto(weatherCondition = "Clouds", icon = "02d"))
-            ),
-            WeatherIntervalDto(
-                dt_txt = "2026-05-05 09:00:00",
-                main = WeatherConditionsDto(temp = 22.0),
-                weather = listOf(WeatherDto(weatherCondition = "Clouds", icon = "02d"))
-            ),
-            WeatherIntervalDto(
-                dt_txt = "2026-06-06 12:00:00",
-                main = WeatherConditionsDto(temp = 25.0),
-                weather = listOf(WeatherDto(weatherCondition = "Clear", icon = "01d"))
-            ),
-            WeatherIntervalDto(
-                dt_txt = "2026-05-07 12:00:00",
-                main = WeatherConditionsDto(temp = 19.0),
-                weather = listOf(WeatherDto(weatherCondition = "Rain", icon = "10d"))
-            ),
-            WeatherIntervalDto(
-                dt_txt = "2026-05-08 12:00:00",
-                main = WeatherConditionsDto(temp = 17.0),
-                weather = listOf(WeatherDto(weatherCondition = "Rain", icon = "10d"))
-            ),
-
-            WeatherIntervalDto(
-                dt_txt = "2026-05-09 12:00:00",
-                main = WeatherConditionsDto(temp = 21.0),
-                weather = listOf(WeatherDto(weatherCondition = "Clear", icon = "01d"))
+                forecastDateTime = "2026-06-24 12:00:00",
+                condition = WeatherConditionsDto(temperature = 20.00),
+                weather = listOf(WeatherDto(weatherCondition = "Warm", icon = "01d"))
             )
-        )
+        ),
+        city = CityDetailsDto(name = "CapeTown", country = "South Africa")
     )
 
-    private fun mockCachedEntities() = listOf(
-        WeatherEntity(
-            day = "Mon",
-            temperature = 22,
-            weatherType = "Clear",
-            icon = "01d"
-        )
-    )
+    @Test
+    fun `given null location, when giveFiveDayForecast is called, then defaults to 0,0 coordinates`() = runTest {
+        coEvery { locationTracker.getCurrentLocation() } returns null
+        coEvery { weatherApi.getFiveDayForecast(any(), any(), any()) } returns mockForecastResponse()
+        coEvery { weatherDao.clearWeatherForecasts() } just Runs
+        coEvery { weatherDao.insertWeatherForecasts(any()) } just Runs
+        every { weatherDao.getWeatherForecasts() } returns flowOf(listOf(mockWeatherEntity()))
+
+        weatherRepository.getFiveDayForecast().first()
+        coVerify { weatherApi.getFiveDayForecast(latitude = 0.0, longitude = 0.0, apiKey = any()) }
+    }
+
+    @Test
+    fun `given network failure, when givenFiveDayForecast is called, then falls back to cached data`() = runTest {
+        coEvery { locationTracker.getCurrentLocation() } returns null
+        coEvery { weatherApi.getFiveDayForecast(any(),any(),any()) } throws Exception("Network error")
+        coEvery { weatherDao.clearWeatherForecasts() } just Runs
+        coEvery { weatherDao.insertWeatherForecasts(any()) } just Runs
+        every { weatherDao.getWeatherForecasts() } returns flowOf(listOf(mockWeatherEntity()))
+
+        val result = weatherRepository.getFiveDayForecast().first()
+        assertThat(result).isNotEmpty()
+    }
+
+    @Test
+    fun `given network failure and empty cache, when getFiveDayForecast is called, then emits empty list`() = runTest {
+        coEvery { locationTracker.getCurrentLocation() } returns null
+        coEvery { weatherApi.getFiveDayForecast(any(),any(),any()) } throws Exception("Network error")
+        coEvery { weatherDao.clearWeatherForecasts() } just Runs
+        coEvery { weatherDao.insertWeatherForecasts(any()) } just Runs
+        every { weatherDao.getWeatherForecasts() } returns flowOf(emptyList())
+
+        val result = weatherRepository.getFiveDayForecast().first()
+        assertThat(result).isEmpty()
+    }
 }
