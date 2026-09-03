@@ -25,7 +25,7 @@ The app follows Clean Architecture with MVVM, structured in three distinct layer
 - Error and loading states handled in UI
 
 ### 📸 Screenshots
-![image.jpeg](app/src/main/res/drawable/screenshots/image.jpeg)
+![image.jpeg](app/src/main/res/drawable/screenshots/weather.jpeg)
 
 ### Third-Party Packages
 
