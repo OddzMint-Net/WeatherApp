@@ -40,7 +40,10 @@ import com.oddzmint.weatherapp.presentation.theme.CardSpacing
 import com.oddzmint.weatherapp.presentation.theme.ScreenPadding
 import com.oddzmint.weatherapp.presentation.theme.ScreenTitle
 import com.oddzmint.weatherapp.presentation.weather.components.WeatherForecastCard
+import com.oddzmint.weatherapp.presentation.weather.utils.TimeOfDay
 import com.oddzmint.weatherapp.presentation.weather.utils.getWeatherUiConfig
+import com.oddzmint.weatherapp.ui.preview.WeatherAppPreview
+import com.oddzmint.weatherapp.ui.theme.WeatherAppTheme
 
 @Composable
 fun WeatherScreen(viewModel: WeatherViewModel = hiltViewModel()) {
@@ -93,7 +96,10 @@ fun WeatherScreenContent(uiState: WeatherUiState) {
         }
 
         is WeatherUiState.Success -> {
-            val weatherUi = getWeatherUiConfig(uiState.forecast.firstOrNull()?.icon ?: "")
+            val weatherUi = getWeatherUiConfig(
+                iconCode = uiState.forecast.firstOrNull()?.icon ?: "",
+                timeOfDay = uiState.timeOfDay
+            )
             Box(modifier = Modifier.fillMaxSize()) {
                 Image(
                     painter = painterResource(weatherUi.backgroundRes),
@@ -150,20 +156,80 @@ fun WeatherScreenContent(uiState: WeatherUiState) {
     }
 }
 
-@Preview(showBackground = true)
+private val mixedWeek = listOf(
+    WeatherForecast("Monday", 24, "Clear", "01d", "Clear sky"),
+    WeatherForecast("Tuesday", 19, "Clouds", "03d", "Scattered clouds"),
+    WeatherForecast("Wednesday", 15, "Rain", "10d", "Light rain"),
+    WeatherForecast("Thursday", 13, "Thunderstorm", "11d", "Thunderstorm"),
+    WeatherForecast("Friday", -2, "Snow", "13d", "Light snow")
+)
+
+private fun weekOf(icon: String, description: String) = listOf(
+    "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"
+).mapIndexed { index, day ->
+    WeatherForecast(day, 24 - index * 2, "", icon, description)
+}
+
+@Preview(showBackground = true, name = "Loading")
 @Composable
-fun WeatherScreenPreview() {
-    WeatherScreenContent(
-        uiState = WeatherUiState.Success(
-            forecast = listOf(
-                WeatherForecast(
-                    day = "Mon",
-                    temperature = 22,
-                    weatherType = "Cool",
-                    icon = "02d",
-                    weatherDescription = "Hot"
-                )
-            )
+private fun WeatherLoadingPreview() {
+    WeatherAppPreview {
+        WeatherScreenContent(
+            WeatherUiState.Loading
         )
-    )
+    }
+}
+
+@Preview(showBackground = true, name = "Permission denied")
+@Composable
+private fun WeatherPermissionDeniedPreview() {
+    WeatherAppPreview {
+        WeatherScreenContent(WeatherUiState.PermissionDenied)
+    }
+}
+
+@Preview(showBackground = true, name = "Error")
+@Composable
+private fun WeatherErrorPreview() {
+    WeatherAppPreview {
+        WeatherScreenContent(WeatherUiState.Error("Unable to resolve host api.openweather.org"))
+    }
+}
+
+@Preview(showBackground = true, name = "Sunny morning")
+@Composable
+private fun WeatherSunnyMorningPreview() {
+    WeatherAppPreview {
+        WeatherScreenContent(
+            WeatherUiState.Success(weekOf("01d", "Clear sky"), TimeOfDay.MORNING)
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Clear night")
+@Composable
+private fun WeatherClearNightPreview() {
+    WeatherAppPreview {
+        WeatherScreenContent(
+            WeatherUiState.Success(weekOf("01d", "Clear sky"), TimeOfDay.NIGHT)
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Rainy afternoon")
+@Composable
+private fun WeatherRainyPreview() {
+    WeatherAppPreview {
+        WeatherScreenContent(
+            WeatherUiState.Success(weekOf("10d", "Light rain"), TimeOfDay.AFTERNOON)
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Mixed week")
+@Composable
+private fun WeatherMixedWeekPreview() {
+    WeatherAppPreview {
+        WeatherScreenContent(WeatherUiState.Success(mixedWeek, TimeOfDay.AFTERNOON))
+    }
 }
