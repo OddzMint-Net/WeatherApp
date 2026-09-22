@@ -196,7 +196,7 @@ private fun WeatherErrorPreview() {
     }
 }
 
-@Preview(showBackground = true, name = "Sunny morning")
+@Preview(showBackground = true, name = "Sunny morning",device = "spec:width=1080px,height=1920px,dpi=440")
 @Composable
 private fun WeatherSunnyMorningPreview() {
     WeatherAppPreview {
@@ -206,7 +206,7 @@ private fun WeatherSunnyMorningPreview() {
     }
 }
 
-@Preview(showBackground = true, name = "Clear night")
+@Preview(showBackground = true, name = "Clear night",device = "spec:width=1080px,height=1920px,dpi=440")
 @Composable
 private fun WeatherClearNightPreview() {
     WeatherAppPreview {
@@ -216,7 +216,7 @@ private fun WeatherClearNightPreview() {
     }
 }
 
-@Preview(showBackground = true, name = "Rainy afternoon")
+@Preview(showBackground = true, name = "Rainy afternoon",device = "spec:width=1080px,height=1920px,dpi=440")
 @Composable
 private fun WeatherRainyPreview() {
     WeatherAppPreview {
@@ -226,7 +226,7 @@ private fun WeatherRainyPreview() {
     }
 }
 
-@Preview(showBackground = true, name = "Mixed week")
+@Preview(showBackground = true, name = "Mixed week",device = "spec:width=1080px,height=1920px,dpi=440")
 @Composable
 private fun WeatherMixedWeekPreview() {
     WeatherAppPreview {
